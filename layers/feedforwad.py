@@ -1,5 +1,4 @@
 import torch
-import activations
 
 
 class Linear:
@@ -18,7 +17,7 @@ class Linear:
         activation (str): The name of the activation function to apply.
     """
 
-    def __init__(self, input_size, output_size, activation="ReLU"):
+    def __init__(self, input_size, output_size):
         """
         Initializes the Linear layer with random weights and biases.
 
@@ -33,34 +32,6 @@ class Linear:
             (input_size, output_size), dtype=torch.float32, requires_grad=True
         )
         self._b = torch.randn((output_size,), dtype=torch.float32, requires_grad=True)
-        self.activation_name = activation
-        self.activation = self._get_activation_function(activation)
-
-    def _get_activation_function(self, name):
-        """
-        Maps the activation name to the corresponding function class.
-
-        Args:
-            name (str): Name of the activation function.
-
-        Returns:
-            Callable: Activation function object.
-
-        Raises:
-            ValueError: If activation name is unsupported.
-        """
-        if name == "ReLU":
-            return activations.ReLU()
-        elif name == "LeakyReLU":
-            return activations.LeakyReLU()
-        elif name == "Sigmoid":
-            return activations.Sigmoid()
-        elif name == "Tanh":
-            return activations.Tanh()
-        elif name == "Softmax":
-            return activations.Softmax()
-        else:
-            raise ValueError(f"Unsupported activation function: {name}")
 
     def __call__(self, x):
         """
@@ -81,7 +52,7 @@ class Linear:
         Returns:
             str: A human-readable description of the layer.
         """
-        return f"Linear(input_size={self.input_size}, output_size={self.output_size}, activation={self.activation_name})"
+        return f"Linear(input_size={self.input_size}, output_size={self.output_size})"
 
     def forward(self, x):
         """
@@ -95,8 +66,9 @@ class Linear:
         """
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x, dtype=torch.float32)
-        return self.activation(torch.matmul(x, self._W) + self._b)
+        return torch.matmul(x, self._W) + self._b
 
+    @property
     def parameters(self):
         """
         Returns the trainable parameters of the layer.
@@ -159,7 +131,7 @@ class Linear:
 
 # Test the Linear layer implementation
 if __name__ == "__main__":
-    layer = Linear(input_size=3, output_size=2, activation="Sigmoid")
+    layer = Linear(input_size=3, output_size=2)
 
     # Create dummy input: batch of 4 samples, each with 3 features
     x = torch.randn((4, 3))
