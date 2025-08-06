@@ -1,5 +1,5 @@
 from activations import ReLU, Sigmoid, Tanh, LeakyReLU, Softmax
-from feedforwad import Linear
+from layers.feedforward import Linear
 
 
 class Sequence:
