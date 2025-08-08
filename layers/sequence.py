@@ -1,4 +1,4 @@
-from activations import ReLU, Sigmoid, Tanh, LeakyReLU, Softmax
+from .activations import ReLU, Sigmoid, Tanh, LeakyReLU, Softmax
 from layers.feedforward import Linear
 
 
@@ -47,7 +47,7 @@ class Sequence:
         params = []
         for layer in self.layers:
             if hasattr(layer, "parameters"):
-                params.extend(layer.parameters())
+                params.extend(layer.parameters)
         return params
 
     def __repr__(self):
