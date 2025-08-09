@@ -62,9 +62,13 @@ class Optimization:
 
             if self.learning_rate_type == "constant":
                 for p, g in zip(params, grads):
+                    if g is None:
+                        continue
                     p.data -= self.learning_rate * g
             elif self.learning_rate_type == "momentum":
                 for idx, (p, g) in enumerate(zip(params, grads)):
+                    if g is None:
+                        continue
                     momentum_velocities[idx] = (
                         momentum * momentum_velocities[idx] - self.learning_rate * g
                     )
