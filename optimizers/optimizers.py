@@ -21,35 +21,62 @@ class Optimization:
     Optimization class for training a model using SGD.
     """
 
-    def __init__(self, model, X, y, epochs, loss_function, learning_rate):
+    def __init__(
+        self,
+        model,
+        X,
+        y,
+        epochs,
+        loss_function,
+        learning_rate,
+        learning_rate_type="constant",
+    ):
         self.model = model
         self.X = X
         self.y = y
         self.epochs = epochs
         self.loss_function = loss_function
         self.learning_rate = learning_rate
+        self.learning_rate_type = learning_rate_type
+
+    import torch
 
     def SGD(self):
         """
-        Apply Stochastic Gradient Descent to minimize the loss.
+        Apply SGD (with optional momentum) to minimize the loss.
 
         Returns:
-            list: The final model parameters (weights and biases).
+            list: Final model parameters.
         """
+        momentum = 0.9
+
+        # Fix params list once so velocities line up with params
+        params = list(self.model.parameters())
+        momentum_velocities = [torch.zeros_like(p) for p in params]
+
         for i in range(self.epochs):
+            preds = self.model(self.X)
+            loss = self.loss_function(preds, self.y)
 
-            prediction = self.model(self.X)
-            loss = self.loss_function(prediction, self.y)
+            grads = torch.autograd.grad(loss, params)
 
-            parameters = self.model.parameters()
-            grads = torch.autograd.grad(loss, parameters, retain_graph=True)
-
-            for param, grad in zip(parameters, grads):
-                param.data -= self.learning_rate * grad
+            if self.learning_rate_type == "constant":
+                for p, g in zip(params, grads):
+                    p.data -= self.learning_rate * g
+            elif self.learning_rate_type == "momentum":
+                for idx, (p, g) in enumerate(zip(params, grads)):
+                    momentum_velocities[idx] = (
+                        momentum * momentum_velocities[idx] - self.learning_rate * g
+                    )
+                    p.data += momentum_velocities[idx]
+            else:
+                raise ValueError(
+                    f"Unknown learning_rate_type: {self.learning_rate_type}"
+                )
 
             print(f"Epoch {i+1}: Loss = {loss.item():.4f}")
 
-        return self.model.parameters()
+        return params
 
 
 if __name__ == "__main__":
@@ -62,7 +89,13 @@ if __name__ == "__main__":
 
     # Train
     trainer = Optimization(
-        model=model, X=X, y=y, epochs=10, loss_function=MSELoss, learning_rate=0.01
+        model=model,
+        X=X,
+        y=y,
+        epochs=10,
+        loss_function=MSELoss,
+        learning_rate=0.01,
+        learning_rate_type="momentum",
     )
 
     final_params = trainer.SGD()
