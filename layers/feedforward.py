@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 class Linear:
@@ -28,10 +29,18 @@ class Linear:
         """
         self.input_size = input_size
         self.output_size = output_size
-        self._W = torch.randn(
-            (input_size, output_size), dtype=torch.float32, requires_grad=True
+        mean = 0.0
+        std = np.sqrt(2.0 / (input_size))
+        self._W = torch.normal(
+            mean,
+            std,
+            size=(input_size, output_size),
+            dtype=torch.float32,
+            requires_grad=True,
         )
-        self._b = torch.randn((output_size,), dtype=torch.float32, requires_grad=True)
+        self._b = torch.normal(
+            mean, std, size=(output_size,), dtype=torch.float32, requires_grad=True
+        )
 
     def __call__(self, x):
         """
