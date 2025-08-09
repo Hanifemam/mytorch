@@ -32,14 +32,18 @@ class Linear:
         mean = 0.0
         std = np.sqrt(2.0 / (input_size))
         self._W = torch.normal(
-            mean,
-            std,
             size=(input_size, output_size),
+            mean=mean,
+            std=std,
             dtype=torch.float32,
             requires_grad=True,
         )
         self._b = torch.normal(
-            mean, std, size=(output_size,), dtype=torch.float32, requires_grad=True
+            size=(output_size,),
+            mean=mean,
+            std=std,
+            dtype=torch.float32,
+            requires_grad=True,
         )
 
     def __call__(self, x):
