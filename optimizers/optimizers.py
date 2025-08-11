@@ -89,6 +89,21 @@ class Optimization:
                         accumulators = [
                             torch.full_like(p, fill_value=init_acc) for p in params
                         ]
+                    else:
+                        self.adagrad(grads, accumulators)
+                    for idx, (param, grad) in enumerate(zip(params, grads)):
+                        if grad is None:
+                            continue
+                        lr = self.learning_rate / (torch.sqrt(accumulators[idx]) + 1e-8)
+                        param -= lr * grad
+                elif self.learning_rate_type == "RMSProp":
+                    if i == 0:
+                        init_acc = 0.1
+                        accumulators = [
+                            torch.full_like(p, fill_value=init_acc) for p in params
+                        ]
+                    else:
+                        self.RMSProp(grads, accumulators)
                     for idx, (param, grad) in enumerate(zip(params, grads)):
                         if grad is None:
                             continue
@@ -138,6 +153,15 @@ class Optimization:
             accumulators[i] += torch.square(g)  # persistent, in-place
         return accumulators
 
+    def RMSProp(self, grads, accumulators, decay_rate=0.9):
+        for i, g in enumerate(grads):
+            if g is None:
+                continue
+            accumulators[i] = decay_rate * accumulators[i] + (
+                1 - decay_rate
+            ) * torch.square(g)
+        return accumulators
+
 
 if __name__ == "__main__":
     # Dummy data
@@ -155,7 +179,7 @@ if __name__ == "__main__":
         epochs=10,
         loss_function=MSELoss,
         learning_rate=0.01,
-        learning_rate_type="momentum",
+        learning_rate_type="RMSProp",  # Change to 'constant', 'momentum', 'linear', or 'RMSProp' as needed
     )
 
     final_params = trainer.SGD()
