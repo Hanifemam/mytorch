@@ -109,6 +109,28 @@ class Optimization:
                             continue
                         lr = self.learning_rate / (torch.sqrt(accumulators[idx]) + 1e-8)
                         param -= lr * grad
+                elif self.learning_rate_type == "Adam":
+                    if i == 0:
+                        momentum_velocities = [torch.zeros_like(p) for p in params]  # m
+                        accumulators = [torch.zeros_like(p) for p in params]  # v
+
+                        lr_correction = self.Adam(
+                            grads,
+                            accumulators,
+                            momentum_velocities,
+                            torch.scalar_tensor(i + 1),
+                        )
+                    else:
+                        lr_correction = self.Adam(
+                            grads,
+                            accumulators,
+                            momentum_velocities,
+                            torch.scalar_tensor(i + 1),
+                        )
+                    for param, corr in zip(params, lr_correction):
+                        if corr is None:
+                            continue
+                        param -= corr * self.learning_rate
                 else:
                     raise ValueError(
                         f"Unknown learning_rate_type: {self.learning_rate_type}"
@@ -162,6 +184,37 @@ class Optimization:
             ) * torch.square(g)
         return accumulators
 
+    def Adam(
+        self,
+        grads,
+        accumulators,
+        momentum_velocities,
+        time_round,  # t (use i+1 when calling)
+        decay_rate_momentum=0.9,  # β1
+        decay_rate_suare=0.999,  # β2  (kept your name, value fixed)
+        delta=1e-8,
+    ):
+        learning_rate_correction = []
+        for i, g in enumerate(grads):
+            if g is None:
+                learning_rate_correction.append(None)
+                continue
+            momentum_velocities[i] = (
+                decay_rate_momentum * momentum_velocities[i]
+                + (1 - decay_rate_momentum) * g
+            )
+
+            accumulators[i] = decay_rate_suare * accumulators[i] + (
+                1.0 - decay_rate_suare
+            ) * torch.square(g)
+            m_hat = momentum_velocities[i] / (
+                1.0 - torch.pow(decay_rate_momentum, time_round)
+            )
+            v_hat = accumulators[i] / (1.0 - torch.pow(decay_rate_suare, time_round))
+            learning_rate_correction.append(m_hat / (torch.sqrt(v_hat) + delta))
+
+        return learning_rate_correction
+
 
 if __name__ == "__main__":
     # Dummy data
@@ -179,7 +232,7 @@ if __name__ == "__main__":
         epochs=10,
         loss_function=MSELoss,
         learning_rate=0.01,
-        learning_rate_type="RMSProp",  # Change to 'constant', 'momentum', 'linear', or 'RMSProp' as needed
+        learning_rate_type="Adam",  # Change to 'constant', 'momentum', 'linear', or 'RMSProp' as needed
     )
 
     final_params = trainer.SGD()
