@@ -64,10 +64,14 @@ class Optimization:
             with torch.no_grad():
                 if self.learning_rate_type == "constant":
                     for p, g in zip(params, grads):
+                        if g is None:
+                            continue
                         p -= self.learning_rate * g
 
                 elif self.learning_rate_type == "momentum":
                     for idx, (p, g) in enumerate(zip(params, grads)):
+                        if g is None:
+                            continue
                         velocities[idx] = (
                             momentum * velocities[idx] - self.learning_rate * g
                         )
@@ -76,7 +80,20 @@ class Optimization:
                 elif self.learning_rate_type == "linear":
                     lr_t = float(lr_schedule[i])
                     for p, g in zip(params, grads):
+                        if g is None:
+                            continue
                         p -= lr_t * g
+                elif self.learning_rate_type == "adagrad":
+                    if i == 0:
+                        init_acc = 0.1
+                        accumulators = [
+                            torch.full_like(p, fill_value=init_acc) for p in params
+                        ]
+                    for idx, (param, grad) in enumerate(zip(params, grads)):
+                        if grad is None:
+                            continue
+                        lr = self.learning_rate / (torch.sqrt(accumulators[idx]) + 1e-8)
+                        param -= lr * grad
                 else:
                     raise ValueError(
                         f"Unknown learning_rate_type: {self.learning_rate_type}"
@@ -113,6 +130,13 @@ class Optimization:
 
     def exponential_lr_schedule():
         pass
+
+    def adagrad(self, grads, accumulators):
+        for i, g in enumerate(grads):
+            if g is None:
+                continue
+            accumulators[i] += torch.square(g)  # persistent, in-place
+        return accumulators
 
 
 if __name__ == "__main__":
