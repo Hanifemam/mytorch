@@ -142,18 +142,122 @@ class Linear:
         self._b = value
 
 
+class BatchNormalization:
+    """
+    Batch Normalization for 2D inputs shaped (N, F).
+    Keeps your original API: _W (gamma), _b (beta), parameters, W/b properties.
+    """
+
+    def __init__(self, input_size, epsilon=1e-5, momentum=0.99):
+        self.input_size = int(input_size)
+        self.epsilon = float(epsilon)
+        self.momentum = float(momentum)
+
+        self._W = torch.tensor(
+            torch.ones((self.input_size,), dtype=torch.float32),  # gamma
+            requires_grad=True,
+        )
+        self._b = torch.tensor(
+            torch.zeros((self.input_size,), dtype=torch.float32),  # beta
+            requires_grad=True,
+        )
+
+        self.moving_mean = torch.tensor(
+            torch.zeros((self.input_size,), dtype=torch.float32),
+            requires_grad=False,
+        )
+        self.moving_var = torch.tensor(
+            torch.ones((self.input_size,), dtype=torch.float32),
+            requires_grad=False,
+        )
+
+    def __call__(self, x, training=True):
+        """Apply BatchNorm.
+        Args:
+            x: (N, F) tensor
+            training (bool): if True use batch stats and update running stats,
+            else use moving stats.
+        """
+        x = torch.tensor(x, dtype=torch.float32)
+
+        if training:
+            batch_mean = torch.mean(x, axis=0)
+            batch_var = torch.var(x, axis=0)
+
+            self.moving_mean = torch.tensor(
+                self.momentum * self.moving_mean + (1.0 - self.momentum) * batch_mean
+            )
+
+            self.moving_var = torch.tensor(
+                self.momentum * self.moving_var + (1.0 - self.momentum) * batch_var
+            )
+
+            mean, var = batch_mean, batch_var
+        else:
+            mean, var = self.moving_mean, self.moving_var
+
+        # Normalize with standard deviation (sqrt(variance)), not variance
+        x_hat = (x - mean) / torch.sqrt(var + self.epsilon)  # (N, F)
+
+        # Affine transform: gamma (W) and beta (b)
+        return x_hat * self._W + self._b
+
+    # ---- Compatibility with your original API ----
+    @property
+    def parameters(self):
+        return [self._W, self._b]
+
+    @property
+    def W(self):  # gamma
+        return self._W
+
+    @W.setter
+    def W(self, value):
+        value = torch.tensor(value, dtype=torch.float32)
+        if value.shape != self._W.size():
+            raise ValueError(f"W shape {value.shape} != {self._W.size()}")
+        self._W = value
+
+    @property
+    def b(self):  # beta
+        return self._b
+
+    @b.setter
+    def b(self, value):
+        value = torch.tensor(value, dtype=torch.float32)
+        if value.shape != self._b.size:
+            raise ValueError(f"b shape {value.shape} != {self._b.shape}")
+        self._b = value
+
+
 # Test the Linear layer implementation
 if __name__ == "__main__":
-    layer = Linear(input_size=3, output_size=2)
+    # layer = Linear(input_size=3, output_size=2)
 
-    # Create dummy input: batch of 4 samples, each with 3 features
-    x = torch.randn((4, 3))
+    # # Create dummy input: batch of 4 samples, each with 3 features
+    # x = torch.randn((4, 3))
 
-    # Forward pass
-    output = layer(x)
+    # # Forward pass
+    # output = layer(x)
+
+    # print("Input:\n", x)
+    # print("Output:\n", output)
+    # print("Weights:\n", layer.W)
+    # print("Weights shape:", layer.W.shape)
+    # print("Biases:\n", layer.b)
+    layer = BatchNormalization(input_size=3)
+
+    # Random input: 4 samples, 3 features
+    x = torch.normal(mean=5.0, std=2.0, size=(4, 3))
+
+    # Forward pass (training mode)
+    output = layer(x, training=True)
 
     print("Input:\n", x)
-    print("Output:\n", output)
-    print("Weights:\n", layer.W)
-    print("Weights shape:", layer.W.shape)
-    print("Biases:\n", layer.b)
+    print("Output (normalized):\n", output)
+    print("Gamma (W):\n", layer.W)
+    print("Gamma shape:", layer.W.shape)
+    print("Beta (b):\n", layer.b)
+    print("Beta shape:", layer.b.shape)
+    print("Moving mean:\n", layer.moving_mean)
+    print("Moving var:\n", layer.moving_var)
