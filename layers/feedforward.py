@@ -230,6 +230,73 @@ class BatchNormalization:
         self._b = value
 
 
+class LayerNormalization:
+    """
+    Batch Normalization for 2D inputs shaped (N, F).
+    Keeps your original API: _W (gamma), _b (beta), parameters, W/b properties.
+    """
+
+    def __init__(self, input_size, epsilon=1e-5):
+        self.input_size = int(input_size)
+        self.epsilon = float(epsilon)
+
+        self._W = torch.tensor(
+            torch.ones((self.input_size,), dtype=torch.float32),  # gamma
+            requires_grad=True,
+        )
+        self._b = torch.tensor(
+            torch.zeros((self.input_size,), dtype=torch.float32),  # beta
+            requires_grad=True,
+        )
+
+    def __call__(self, x):
+        """Apply LayerNorm.
+        Args:
+            x: (N, F) tensor
+        returns:
+            (N, F) tensor after layer normalization.
+        """
+        x = torch.tensor(x, dtype=torch.float32)
+
+        batch_mean = torch.mean(x, axis=1, keepdim=True)
+        batch_var = torch.var(x, axis=1, keepdim=True)
+
+        mean, var = batch_mean, batch_var
+
+        # Normalize with standard deviation (sqrt(variance)), not variance
+        x_hat = (x - mean) / torch.sqrt(var + self.epsilon)  # (N, F)
+
+        # Affine transform: gamma (W) and beta (b)
+        return x_hat * self._W + self._b
+
+    # ---- Compatibility with your original API ----
+    @property
+    def parameters(self):
+        return [self._W, self._b]
+
+    @property
+    def W(self):  # gamma
+        return self._W
+
+    @W.setter
+    def W(self, value):
+        value = torch.tensor(value, dtype=torch.float32)
+        if value.shape != self._W.size():
+            raise ValueError(f"W shape {value.shape} != {self._W.size()}")
+        self._W = value
+
+    @property
+    def b(self):  # beta
+        return self._b
+
+    @b.setter
+    def b(self, value):
+        value = torch.tensor(value, dtype=torch.float32)
+        if value.shape != self._b.size:
+            raise ValueError(f"b shape {value.shape} != {self._b.shape}")
+        self._b = value
+
+
 # Test the Linear layer implementation
 if __name__ == "__main__":
     # layer = Linear(input_size=3, output_size=2)
@@ -245,7 +312,7 @@ if __name__ == "__main__":
     # print("Weights:\n", layer.W)
     # print("Weights shape:", layer.W.shape)
     # print("Biases:\n", layer.b)
-    layer = BatchNormalization(input_size=3)
+    layer = LayerNormalization(input_size=3)
 
     # Random input: 4 samples, 3 features
     x = torch.normal(mean=5.0, std=2.0, size=(4, 3))
@@ -259,5 +326,3 @@ if __name__ == "__main__":
     print("Gamma shape:", layer.W.shape)
     print("Beta (b):\n", layer.b)
     print("Beta shape:", layer.b.shape)
-    print("Moving mean:\n", layer.moving_mean)
-    print("Moving var:\n", layer.moving_var)
