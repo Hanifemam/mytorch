@@ -31,6 +31,9 @@ class Optimization:
         loss_function,
         learning_rate,
         learning_rate_type="constant",
+        soft_weight_sharing=False,
+        decay=0.1,
+        components=3,
     ):
         self.model = model
         self.X = X
@@ -39,6 +42,11 @@ class Optimization:
         self.loss_function = loss_function
         self.learning_rate = learning_rate
         self.learning_rate_type = learning_rate_type
+        self.is_soft_weight_sharing = soft_weight_sharing
+        if self.is_soft_weight_sharing:
+            self.decay = decay
+            self.components = components
+            self.soft_weight_sharing = SoftWeightSharing(components)
 
     def SGD(self):
         """
@@ -59,6 +67,9 @@ class Optimization:
         for i in range(self.epochs):
             preds = self.model(self.X)
             loss = self.loss_function(preds, self.y)
+            if self.is_soft_weight_sharing:
+                loss += self.soft_weight_sharing(self.decay, params)
+
             grads = torch.autograd.grad(loss, params)
 
             with torch.no_grad():
@@ -216,6 +227,45 @@ class Optimization:
         return learning_rate_correction
 
 
+import math
+import torch
+import torch.nn as nn
+
+
+class SoftWeightSharing(nn.Module):
+    def __init__(self, components: int, init_std: float = 0.5, device=None, dtype=None):
+        super().__init__()
+        K = int(components)
+        kw = {"device": device, "dtype": dtype}
+
+        # Trainable mixture parameters (as nn.Parameter, not plain tensors)
+        self.mu = nn.Parameter(torch.linspace(-1.0, 1.0, K, **kw))  # [K]
+        self.log_sigma = nn.Parameter(
+            torch.log(torch.full((K,), init_std, **kw))
+        )  # [K] (log std)
+        self.logits = nn.Parameter(torch.zeros(K, **kw))  # [K] (for π via softmax)
+
+    def forward(self, decay, parameters):
+        # Flatten & concatenate all selected parameter tensors
+        w = torch.cat([p.reshape(-1) for p in parameters], dim=0)  # [N]
+        if w.numel() == 0:
+            return torch.zeros((), device=self.mu.device, dtype=self.mu.dtype)
+
+        w = w.unsqueeze(-1)  # [N,1]
+        mu = self.mu.unsqueeze(0)  # [1,K]
+        sigma2 = torch.exp(2.0 * self.log_sigma).unsqueeze(0)  # [1,K]
+        log_pi = torch.log_softmax(self.logits, dim=-1).unsqueeze(0)  # [1,K]
+
+        # log N(w|mu, sigma^2) = -0.5*(log(2π) + log sigma^2) - (w-mu)^2/(2 sigma^2)
+        log_norm = -0.5 * (math.log(2.0 * math.pi) + torch.log(sigma2))  # [1,K]
+        log_exp = -0.5 * (w - mu).pow(2) / sigma2  # [N,K]
+        log_comp = log_norm + log_exp  # [N,K]
+
+        log_mix = torch.logsumexp(log_pi + log_comp, dim=-1)  # [N]
+        nll = -log_mix.sum()  # scalar
+        return decay * nll
+
+
 if __name__ == "__main__":
     # Dummy data
     X = torch.randn((10, 3))  # 10 samples, 3 features
@@ -232,7 +282,9 @@ if __name__ == "__main__":
         epochs=10,
         loss_function=MSELoss,
         learning_rate=0.01,
-        learning_rate_type="Adam",  # Change to 'constant', 'momentum', 'linear', or 'RMSProp' as needed
+        soft_weight_sharing=True,
+        decay=0.001,
+        components=2,
     )
 
     final_params = trainer.SGD()
