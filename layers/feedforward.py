@@ -18,7 +18,7 @@ class Linear:
         activation (str): The name of the activation function to apply.
     """
 
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, residual=False):
         """
         Initializes the Linear layer with random weights and biases.
 
@@ -45,6 +45,7 @@ class Linear:
             dtype=torch.float32,
             requires_grad=True,
         )
+        self.residual = residual
 
     def __call__(self, x):
         """
@@ -79,7 +80,10 @@ class Linear:
         """
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x, dtype=torch.float32)
-        return torch.matmul(x, self._W) + self._b
+        if self.residual:
+            return torch.matmul(x, self._W) + self._b + x
+        else:
+            return torch.matmul(x, self._W) + self._b
 
     @property
     def parameters(self):

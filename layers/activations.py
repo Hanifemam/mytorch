@@ -25,7 +25,7 @@ class ReLU:
     """Applies the ReLU activation function."""
 
     def __call__(self, x):
-        return torch.max(0.0, x)
+        return torch.max(torch.tensor(0.0), x)
 
     def __repr__(self):
         return "ReLU()"
