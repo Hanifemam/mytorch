@@ -18,7 +18,9 @@ class Linear:
         activation (str): The name of the activation function to apply.
     """
 
-    def __init__(self, input_size, output_size, residual=False):
+    def __init__(
+        self, input_size, output_size, residual=False, dropout=0.5, training=True
+    ):
         """
         Initializes the Linear layer with random weights and biases.
 
@@ -46,6 +48,8 @@ class Linear:
             requires_grad=True,
         )
         self.residual = residual
+        self.p_keep = dropout
+        self.training = training
 
     def __call__(self, x):
         """
@@ -80,10 +84,18 @@ class Linear:
         """
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x, dtype=torch.float32)
+        y = torch.matmul(x, self._W) + self._b
         if self.residual:
-            return torch.matmul(x, self._W) + self._b + x
-        else:
-            return torch.matmul(x, self._W) + self._b
+            if x.shape == y.shape:
+                y = y + x
+            else:
+                raise ValueError(
+                    f"Residual requires in==out, got {self.in_features}!={self.out_features}"
+                )
+        if self.training and self.p_keep < 1.0:
+            mask = (torch.rand_like(y) < self.p_keep).type_as(y)
+            y = y * mask / self.p_keep
+        return y
 
     @property
     def parameters(self):

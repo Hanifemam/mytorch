@@ -11,7 +11,7 @@ class Sequence:
     enabling the construction of complex neural network architectures.
     """
 
-    def __init__(self, residual=False, *layers):
+    def __init__(self, training=True, residual=False, dropout=0.0, *layers):
         """
         Initializes the Sequence with a list of layers.
 
@@ -19,6 +19,9 @@ class Sequence:
             *layers: Variable number of layer instances to be included in the sequence.
         """
         self.layers = layers
+        self.residual = training
+        self.dropout = dropout
+        self.training = training
 
     def __call__(self, x):
         """
@@ -35,7 +38,7 @@ class Sequence:
                 raise TypeError(f"Layer {layer} must be callable")
             else:
                 if layer is Linear:
-                    x = layer(x, self.residual)
+                    x = layer(x, self.residual, self.dropout, self.training)
                 else:
                     x = layer(x)
         print(x)
@@ -71,12 +74,14 @@ x = torch.randn((2, 3))  # batch of 2, input size 3
 
 print("Without residual:")
 model_nores = Sequence(
-    False, Linear(3, 4), ReLU(), Linear(4, 3)
+    False, True, 0.0, Linear(3, 4), ReLU(), Linear(4, 3)
 )  # output matches input dim
 out1 = model_nores(x)
 print("Output shape:", out1.shape)
 
 print("\nWith residual:")
-model_res = Sequence(True, Linear(3, 4), ReLU(), Linear(4, 3))  # residual path possible
+model_res = Sequence(
+    True, True, 0.5, Linear(3, 4), ReLU(), Linear(4, 3)
+)  # residual path possible
 out2 = model_res(x)
 print("Output shape:", out2.shape)
